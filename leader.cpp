@@ -1,3 +1,5 @@
+// REFERENCE: https://github.com/bethirahul/RPC_and_Chang-Robert-Leader-Election-Algorithm/blob/master/election.c
+
 #include "mpi.h"
 #include <iostream>
 #include <time.h>
@@ -15,55 +17,52 @@ int modulo_Euclidean(int a, int b) {
 }
 
 int main(int argc, char *argv[]){
-    int rank, size;
+    int rank, size, initiator;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    sscanf(argv[1], "%d", &initiator);
+    if (initiator >= size  || initiator < 0){
+        if (rank == 0){
+            printf("Invalid num. Initiator must be from 0 to %d.\n", size-1);
+        }
+        MPI_Finalize();
+        return 0;
+    }
+
     srand(time(NULL) + rank);
-    int ID, message, trips = 0;
-    bool state = 0, leader = 0, running = 1;
+    int ID, message;
+    bool state = 0, leader = 0;
 
     MPI_Barrier(MPI_COMM_WORLD);
-    ID = rand() % 10000000000000;
+    ID = rand() % 100000000000000;
     printf("Rank: %d, ID: %d \n", rank, ID);
     MPI_Barrier(MPI_COMM_WORLD);
 
-    if (rank == 0){
+    if (rank == initiator){
+        printf("Initiator: %d\n", initiator);
         message = ID;
         MPI_Send(&message, 1, MPI_INT, (rank+1) % size, 0, MPI_COMM_WORLD);
         printf("Process %d sent message %d to process %d.\n", rank, message, (rank+1) % size);
     }
 
     for (int i = 0; i < 2; i++){
-        MPI_Recv(&message, 1, MPI_INT, (rank-1) % size, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-        if (leader || message == -1)
-            printf("Process %d received dummy message %d from process %d.\n", rank, message, modulo_Euclidean(rank-1, size));
-        else
-            printf("Process %d received message %d from process %d.\n", rank, message, modulo_Euclidean(rank-1, size));
-
-        if (message > ID){
-            state = 0;
-        } else if (message == ID){
+        MPI_Recv(&message, 1, MPI_INT, modulo_Euclidean((rank-1), size), 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        printf("Process %d received message %d from process %d.\n", rank, message, modulo_Euclidean((rank-1), size));
+        
+        if (message == ID){
             leader = 1;
+        } else if (message > ID){
+            state = 0;
         } else {
             state = 1;
-            if (message == -1)
-                ID = message;
-            else
-                message = ID;
+            message = ID;
         }
 
-        if (leader || message == -1) {
-            message = -1;
-            MPI_Send(&message, 1, MPI_INT, (rank+1) % size, 0, MPI_COMM_WORLD);
-            printf("Process %d sent dummy message %d to process %d.\n", rank, message, (rank+1) % size);
-        }
-        else{
-            MPI_Send(&message, 1, MPI_INT, (rank+1) % size, 0, MPI_COMM_WORLD);
-            printf("Process %d sent message %d to process %d.\n", rank, message, (rank+1) % size);
-        }
+        MPI_Send(&message, 1, MPI_INT, (rank+1) % size, 0, MPI_COMM_WORLD);
+        printf("Process %d sent message %d to process %d.\n", rank, message, (rank+1) % size);
+
     }
     
     if (leader){
