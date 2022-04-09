@@ -1,5 +1,7 @@
 # CPSC474-Project
 
+Leader election in a ring topology using Chang-Roberts algorithm
+
 Group members:
 
 Brandon Le Ble2306@csu.fullerton.edu
